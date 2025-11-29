@@ -5,6 +5,10 @@ uniform sampler2D gcolor;
 
 // Runtime controllable: enable equirectangular projection (1 = on)
 uniform int u_use_equirectangular; // set to 1 to enable
+// Runtime controllable: enable cubemap sampling (1 = on)
+uniform int u_use_cubemap;
+// Cubemap sampler (optional - shader will fallback to `gcolor` if not used)
+uniform samplerCube u_cubemap;
 
 // Horizontal field of view in degrees. 360.0 produces a full wrap-around view.
 uniform float u_fov_deg;
@@ -25,32 +29,41 @@ void main() {
 	//               1.0 - acos(view.y) * INV_PI);
 	// }
 	vec2 uv = texcoord;
-	if (u_use_equirectangular != 0) {
-		// Build view vector from screen UV assuming the screen maps to
-		// spherical directions. Horizontal longitude range is controlled
-		// by U_FOV_DEG; for a full 360-degree horizontal view set to 360.
-		// convert FOV/offset from degrees (uniforms) to radians
+
+	vec3 color = vec3(0.0);
+
+	if (u_use_cubemap != 0) {
+		// Cubemap sampling: build a view direction from screen UV and sample the cube map.
 		float lon = (uv.x - 0.5) * (radians(u_fov_deg));
 		lon += radians(u_lon_offset_deg);
-
-		// Polar angle from +Y axis: polar = (1 - v) * PI
 		float polar = (1.0 - uv.y) * PI;
-
 		float vy = cos(polar);
 		float r = sin(polar);
 		float vx = cos(lon) * r;
 		float vz = sin(lon) * r;
+		vec3 dir = vec3(vx, vy, vz);
+		color = textureCube(u_cubemap, dir).rgb;
 
-		// Now compute equirectangular UV from view vector (matches provided function)
+	} else if (u_use_equirectangular != 0) {
+		// Equirectangular mapping: from view vector to (u,v)
+		float lon = (uv.x - 0.5) * (radians(u_fov_deg));
+		lon += radians(u_lon_offset_deg);
+		float polar = (1.0 - uv.y) * PI;
+		float vy = cos(polar);
+		float r2 = sin(polar);
+		float vx = cos(lon) * r2;
+		float vz = sin(lon) * r2;
 		float INV_TAU = 1.0 / (2.0 * PI);
 		float INV_PI = 1.0 / PI;
 		float u = atan(vz, vx) * INV_TAU + 0.5;
 		float v = 1.0 - acos(vy) * INV_PI;
-
 		uv = vec2(u - floor(u), clamp(v, 0.0, 1.0));
-	}
+		color = texture2D(gcolor, uv).rgb;
 
-	vec3 color = texture2D(gcolor, uv).rgb;
+	} else {
+		// Fallback: original sampling
+		color = texture2D(gcolor, texcoord).rgb;
+	}
 
 /* DRAWBUFFERS:0 */
 	gl_FragData[0] = vec4(color, 1.0); //gcolor
