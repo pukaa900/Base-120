@@ -32,7 +32,13 @@ void main() {
 
 	vec3 color = vec3(0.0);
 
-	if (u_use_cubemap != 0) {
+	// Use cubemap if requested. If neither cubemap nor equirectangular
+	// uniforms are provided (common for simple shader hosts), default to
+	// equirectangular mapping so the projection actually changes.
+	bool want_cubemap = (u_use_cubemap != 0);
+	bool want_equirect = (u_use_equirectangular != 0) || (!want_cubemap && u_use_equirectangular == 0);
+
+	if (want_cubemap) {
 		// Cubemap sampling: build a view direction from screen UV and sample the cube map.
 		float lon = (uv.x - 0.5) * (radians(u_fov_deg));
 		lon += radians(u_lon_offset_deg);
@@ -44,7 +50,7 @@ void main() {
 		vec3 dir = vec3(vx, vy, vz);
 		color = textureCube(u_cubemap, dir).rgb;
 
-	} else if (u_use_equirectangular != 0) {
+	} else if (want_equirect) {
 		// Equirectangular mapping: from view vector to (u,v)
 		float lon = (uv.x - 0.5) * (radians(u_fov_deg));
 		lon += radians(u_lon_offset_deg);
