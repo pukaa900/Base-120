@@ -3,15 +3,15 @@
 uniform sampler2D gcolor;
 
 
-// Mercator projection enabled by default (set to 0 to disable at compile time)
-const int U_USE_MERCATOR = 1;
+// Runtime controllable: enable equirectangular projection (1 = on)
+uniform int u_use_equirectangular; // set to 1 to enable
 
 // Horizontal field of view in degrees. 360.0 produces a full wrap-around view.
-const float U_FOV_DEG = 360.0;
+uniform float u_fov_deg;
 // Horizontal longitude offset in degrees (rotate view)
-const float U_LON_OFFSET_DEG = 0.0;
-// Vertical scale/zoom for the Mercator mapping (1.0 = natural)
-const float U_VERT_SCALE = 1.0;
+uniform float u_lon_offset_deg;
+// (unused for equirectangular but left for compatibility)
+uniform float u_vert_scale;
 
 varying vec2 texcoord;
 
@@ -25,12 +25,13 @@ void main() {
 	//               1.0 - acos(view.y) * INV_PI);
 	// }
 	vec2 uv = texcoord;
-	if (U_USE_MERCATOR != 0) {
+	if (u_use_equirectangular != 0) {
 		// Build view vector from screen UV assuming the screen maps to
 		// spherical directions. Horizontal longitude range is controlled
 		// by U_FOV_DEG; for a full 360-degree horizontal view set to 360.
-		float lon = (uv.x - 0.5) * (radians(U_FOV_DEG));
-		lon += radians(U_LON_OFFSET_DEG);
+		// convert FOV/offset from degrees (uniforms) to radians
+		float lon = (uv.x - 0.5) * (radians(u_fov_deg));
+		lon += radians(u_lon_offset_deg);
 
 		// Polar angle from +Y axis: polar = (1 - v) * PI
 		float polar = (1.0 - uv.y) * PI;
