@@ -18,28 +18,35 @@ varying vec2 texcoord;
 const float PI = 3.14159265358979323846;
 
 void main() {
-	// Map screen coordinates to longitude/latitude and sample the
-	// equirectangular source (`gcolor`). This supports full 360deg FOV
-	// horizontally by wrapping longitude, and uses the inverse Mercator
-	// for vertical conversion.
+	// Convert screen UV to a view direction vector then to
+	// equirectangular coordinates (longitude, latitude) matching:
+	// vec2 ViewToEquirectangular(vec3 view) {
+	//   return vec2(atan(view.z, view.x) * INV_TAU + 0.5,
+	//               1.0 - acos(view.y) * INV_PI);
+	// }
 	vec2 uv = texcoord;
 	if (U_USE_MERCATOR != 0) {
-		// --- longitude (u) ---
-		// map x from [0,1] -> [-0.5,0.5], scale by FOV, add offset
-		float lon = (uv.x - 0.5) * radians(U_FOV_DEG) + radians(U_LON_OFFSET_DEG);
-		// normalize longitude to [0,1]
-		float u = lon / (2.0 * PI) + 0.5;
-		// wrap horizontally
-		u = u - floor(u);
+		// Build view vector from screen UV assuming the screen maps to
+		// spherical directions. Horizontal longitude range is controlled
+		// by U_FOV_DEG; for a full 360-degree horizontal view set to 360.
+		float lon = (uv.x - 0.5) * (radians(U_FOV_DEG));
+		lon += radians(U_LON_OFFSET_DEG);
 
-		// --- latitude (v) via inverse Mercator ---
-		// Treat screen Y as Mercator Y; allow vertical scaling/zoom
-		float merc = (uv.y - 0.5) * U_VERT_SCALE + 0.5;
-		merc = clamp(merc, 0.0, 1.0);
-		float lat = 2.0 * atan(exp((0.5 - merc) * 2.0 * PI)) - (PI * 0.5);
-		float v = clamp((lat / PI) + 0.5, 0.0, 1.0);
+		// Polar angle from +Y axis: polar = (1 - v) * PI
+		float polar = (1.0 - uv.y) * PI;
 
-		uv = vec2(u, v);
+		float vy = cos(polar);
+		float r = sin(polar);
+		float vx = cos(lon) * r;
+		float vz = sin(lon) * r;
+
+		// Now compute equirectangular UV from view vector (matches provided function)
+		float INV_TAU = 1.0 / (2.0 * PI);
+		float INV_PI = 1.0 / PI;
+		float u = atan(vz, vx) * INV_TAU + 0.5;
+		float v = 1.0 - acos(vy) * INV_PI;
+
+		uv = vec2(u - floor(u), clamp(v, 0.0, 1.0));
 	}
 
 	vec3 color = texture2D(gcolor, uv).rgb;
