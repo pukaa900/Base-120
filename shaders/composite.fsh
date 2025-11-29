@@ -16,6 +16,10 @@ uniform float u_fov_deg;
 uniform float u_lon_offset_deg;
 // (unused for equirectangular but left for compatibility)
 uniform float u_vert_scale;
+// Screen resolution (pixels). If set, `gl_FragCoord` will be used to build UVs.
+uniform vec2 u_resolution;
+// Debug: 0 = off, 1 = visualize computed equirectangular UV as color
+uniform int u_debug_uv;
 
 varying vec2 texcoord;
 
@@ -28,7 +32,14 @@ void main() {
 	//   return vec2(atan(view.z, view.x) * INV_TAU + 0.5,
 	//               1.0 - acos(view.y) * INV_PI);
 	// }
-	vec2 uv = texcoord;
+	// Prefer `gl_FragCoord` -> normalized screen UV when `u_resolution` provided,
+	// because some hosts provide `texcoord` differently. Fall back to `texcoord`.
+	vec2 uv;
+	if (u_resolution.x > 0.0 && u_resolution.y > 0.0) {
+		uv = gl_FragCoord.xy / u_resolution;
+	} else {
+		uv = texcoord;
+	}
 
 	vec3 color = vec3(0.0);
 
@@ -64,7 +75,12 @@ void main() {
 		float u = atan(vz, vx) * INV_TAU + 0.5;
 		float v = 1.0 - acos(vy) * INV_PI;
 		uv = vec2(u - floor(u), clamp(v, 0.0, 1.0));
-		color = texture2D(gcolor, uv).rgb;
+		if (u_debug_uv != 0) {
+			// visualize u,v as color to help debugging
+			color = vec3(uv, 0.0);
+		} else {
+			color = texture2D(gcolor, uv).rgb;
+		}
 
 	} else {
 		// Fallback: original sampling
